@@ -30,16 +30,21 @@ def request_json(base_url: str, path: str, payload: dict | None = None, timeout:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def wait_for_result(base_url: str, timeout: int) -> dict:
+def wait_for_result(base_url: str, timeout: int, min_version: int | None = None) -> dict:
     deadline = time.monotonic() + timeout
     last = {}
     while time.monotonic() < deadline:
         last = request_json(base_url, "/api/status", timeout=10)
         status = last.get("status")
-        if status in {"awaiting_human", "complete", "failed"}:
+        version = int(last.get("version") or 0)
+        version_ready = min_version is None or version >= min_version
+        if status in {"awaiting_human", "complete", "failed"} and version_ready:
             return last
         time.sleep(2)
-    raise TimeoutError(f"Game Factory did not finish within {timeout}s; last status={last.get('status')!r}")
+    raise TimeoutError(
+        f"Game Factory did not finish within {timeout}s; "
+        f"last status={last.get('status')!r} version={last.get('version')!r}"
+    )
 
 
 def absolute_url(base_url: str, maybe_relative: str) -> str:
@@ -78,13 +83,15 @@ def main() -> int:
             refinement = " ".join(args.refine).strip()
             if not refinement:
                 parser.error("--refine requires feedback text")
+            current = request_json(base_url, "/api/status", timeout=10)
+            next_version = int(current.get("version") or 0) + 1
             request_json(base_url, "/api/refine", {"feedback": refinement, "source": args.source}, timeout=10)
-            result = wait_for_result(base_url, args.timeout)
+            result = wait_for_result(base_url, args.timeout, min_version=next_version)
         else:
             if not prompt:
                 parser.error("prompt is required unless --refine or --approve is used")
             request_json(base_url, "/api/start", {"prompt": prompt, "model": args.model, "source": args.source}, timeout=10)
-            result = wait_for_result(base_url, args.timeout)
+            result = wait_for_result(base_url, args.timeout, min_version=1)
     except urllib.error.HTTPError as exc:
         print(exc.read().decode("utf-8", errors="ignore"), file=sys.stderr)
         return 1

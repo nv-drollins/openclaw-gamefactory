@@ -1122,6 +1122,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"ok": False, "message": "Start a run first."}, status=409)
                     return
                 STATE.set_control(source, f"Refine requested: {feedback[:80]}")
+                STATE.status = "running"
+                STATE.phase = "builder"
                 STATE.worker = threading.Thread(
                     target=run_generation,
                     args=(STATE.prompt, STATE.model, feedback),
