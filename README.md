@@ -30,6 +30,17 @@ chmod +x start.sh stop.sh restart.sh scripts/*.sh scripts/*.py
 ./scripts/start-demo.sh
 ```
 
+This demo was created and tested with OpenClaw CLI `2026.5.12`. The installer
+uses that version by default. To intentionally test a different OpenClaw
+release, pass it through the start command:
+
+```bash
+OPENCLAW_CLI_VERSION=2026.5.12 ./scripts/start-demo.sh
+```
+
+Use `OPENCLAW_CLI_VERSION=latest ./scripts/start-demo.sh` only when validating
+the latest OpenClaw release.
+
 Open the Game Factory UI:
 
 ```text
@@ -132,6 +143,7 @@ OpenClaw should call the approval action, and the UI should move the Human Check
 | `APP_FACTORY_PROVIDER` | `ollama` | Model provider used by the Game Factory server |
 | `APP_FACTORY_NUM_CTX` | `12288` | Ollama context for code generation |
 | `APP_FACTORY_MAX_TOKENS` | `6000` | Generation token budget |
+| `OPENCLAW_CLI_VERSION` | `2026.5.12` | OpenClaw CLI npm package version installed by the prereq script |
 | `OPENCLAW_PROFILE` | `openclaw-gamefactory` | Native OpenClaw profile |
 | `OPENCLAW_GATEWAY_PORT` | `18793` | Dashboard port |
 | `OPENCLAW_OLLAMA_MODEL` | `gemma4:latest` | Lightweight OpenClaw orchestrator |
@@ -145,7 +157,7 @@ The installer handles:
 
 - Ubuntu/Debian host packages: `curl`, `git`, `lsof`, `python3`, `python3-venv`, `python3-pip`, `zstd`
 - Node.js 22 through nvm when needed
-- OpenClaw CLI through npm when needed
+- OpenClaw CLI `2026.5.12` through npm by default; override with `OPENCLAW_CLI_VERSION`
 - Ollama 0.22.1 when needed
 - Ollama models `qwen3-coder:30b` and `gemma4:latest`
 
