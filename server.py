@@ -788,11 +788,22 @@ class DemoState:
             self.review_notes: list[str] = []
             self.skill_md = ""
             self.metrics = {"modelCalls": 0, "versions": 0, "refinements": 0}
+            self.controller = "Browser UI"
+            self.last_action = "Ready"
+            self.last_action_time = utc_now()
             self.log("system", "Ready", "Enter a prompt or use Random Game to start from a curated game idea.")
 
     def log(self, kind: str, title: str, detail: str) -> None:
         self.events.append({"time": utc_now(), "kind": kind, "title": title, "detail": detail})
         self.events = self.events[-80:]
+
+    def set_control(self, source: str, action: str) -> None:
+        source = clean_plain_text(source or "Browser UI", 40)
+        action = clean_plain_text(action or "Updated", 120)
+        self.controller = source or "Browser UI"
+        self.last_action = action or "Updated"
+        self.last_action_time = utc_now()
+        self.log("control", f"{self.controller}: {self.last_action}", "The live UI is reflecting an action sent to the Game Factory API.")
 
     def set_flow(self, step_id: str, status: str) -> None:
         for step in self.flow:
@@ -818,6 +829,9 @@ class DemoState:
                 "reviewNotes": list(self.review_notes),
                 "skillMd": self.skill_md,
                 "metrics": dict(self.metrics),
+                "controller": self.controller,
+                "lastAction": self.last_action,
+                "lastActionTime": self.last_action_time,
             }
 
 
@@ -1083,17 +1097,20 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/start":
             prompt = str(body.get("prompt") or DEFAULT_PROMPT).strip() or DEFAULT_PROMPT
             model = str(body.get("model") or DEFAULT_MODEL).strip() or DEFAULT_MODEL
+            source = str(body.get("source") or "Browser UI").strip() or "Browser UI"
             with STATE.lock:
                 if STATE.worker and STATE.worker.is_alive():
                     self.send_json({"ok": False, "message": "Generation is already running."}, status=409)
                     return
                 STATE.reset(prompt=prompt)
+                STATE.set_control(source, "Generate requested")
                 STATE.worker = threading.Thread(target=run_generation, args=(prompt, model), daemon=True)
                 STATE.worker.start()
             self.send_json({"ok": True})
             return
         if parsed.path == "/api/refine":
             feedback = str(body.get("feedback") or "").strip()
+            source = str(body.get("source") or "Browser UI").strip() or "Browser UI"
             if not feedback:
                 self.send_json({"ok": False, "message": "Feedback is required."}, status=400)
                 return
@@ -1104,6 +1121,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not STATE.run_id:
                     self.send_json({"ok": False, "message": "Start a run first."}, status=409)
                     return
+                STATE.set_control(source, f"Refine requested: {feedback[:80]}")
                 STATE.worker = threading.Thread(
                     target=run_generation,
                     args=(STATE.prompt, STATE.model, feedback),
@@ -1113,20 +1131,25 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
         if parsed.path == "/api/approve":
+            source = str(body.get("source") or "Browser UI").strip() or "Browser UI"
             with STATE.lock:
                 STATE.status = "complete"
                 STATE.phase = "complete"
                 STATE.set_flow("human", "done")
+                STATE.set_control(source, "Approved final version")
                 STATE.log("human", "Final app approved", "The current deployed app is marked as final.")
             self.send_json({"ok": True})
             return
         if parsed.path == "/api/reset":
+            source = str(body.get("source") or "Browser UI").strip() or "Browser UI"
             with STATE.lock:
                 if STATE.worker and STATE.worker.is_alive():
                     self.send_json({"ok": False, "message": "Generation is already running."}, status=409)
                     return
             prompt = random.choice(RANDOM_GAME_PROMPTS)
             STATE.reset(prompt=prompt)
+            with STATE.lock:
+                STATE.set_control(source, "Random prompt selected")
             self.send_json({"ok": True, "prompt": prompt})
             return
         self.send_json({"error": "Not found"}, status=404)

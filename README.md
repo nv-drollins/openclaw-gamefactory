@@ -82,6 +82,47 @@ You can also drive the server directly:
 ./scripts/generate-game.py "Build a small asteroid dodger with score, lives, timer, and restart controls."
 ```
 
+## OpenClaw Demo Flow
+
+For the best RawClaw demo, put two browser windows side by side:
+
+- Left: OpenClaw dashboard from `scripts/show-dashboard.sh`
+- Right: Game Factory UI at `http://<spark-ip>:7866`
+
+Then use OpenClaw as the control surface. The Game Factory UI polls the same backend, so it updates live as OpenClaw takes each action.
+
+1. In OpenClaw, ask:
+
+```text
+Use the game-factory skill to build a small rover crystal collector with hazards, score, timer, and restart controls.
+```
+
+The UI should show `Control surface: OpenClaw`, the Builder/Reviewer/Deployer flow should run, and the generated game should appear in the preview.
+
+2. Ask for a revision:
+
+```text
+Make the hazards brighter, add a pause button, and make the score larger.
+```
+
+OpenClaw should use the refine action, not start over. The same run gets a new version and the preview refreshes.
+
+3. Ask for another revision:
+
+```text
+Add keyboard instructions and make the win condition more obvious.
+```
+
+Multiple revisions are supported. Each refine request preserves the current app and writes the next version under `runs/<run_id>/vN`.
+
+4. Approve the result:
+
+```text
+This version looks good. Approve it.
+```
+
+OpenClaw should call the approval action, and the UI should move the Human Check step to done.
+
 ## Defaults
 
 | Setting | Default | Purpose |

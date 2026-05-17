@@ -26,6 +26,8 @@ const els = {
   memoryGauge: document.querySelector("#memoryGauge"),
   memoryValue: document.querySelector("#memoryValue"),
   memoryDetail: document.querySelector("#memoryDetail"),
+  controller: document.querySelector("#controller"),
+  lastAction: document.querySelector("#lastAction"),
 };
 
 function escapeHtml(value) {
@@ -141,6 +143,10 @@ function renderTelemetry(data) {
 function render(snapshot) {
   els.status.textContent = snapshot.status;
   els.title.textContent = snapshot.title || "Generated game preview";
+  els.controller.textContent = snapshot.controller || "Browser UI";
+  els.lastAction.textContent = snapshot.lastActionTime
+    ? `${snapshot.lastAction || "Ready"} · ${new Date(snapshot.lastActionTime).toLocaleTimeString()}`
+    : snapshot.lastAction || "Ready";
   if (document.activeElement !== els.prompt && snapshot.status !== "running") {
     els.prompt.value = snapshot.prompt || els.prompt.value;
   }
@@ -189,13 +195,13 @@ async function refreshTelemetry() {
 els.start.addEventListener("click", async () => {
   await api("/api/start", {
     method: "POST",
-    body: JSON.stringify({ prompt: els.prompt.value, model: els.model.value }),
+    body: JSON.stringify({ prompt: els.prompt.value, model: els.model.value, source: "Browser UI" }),
   });
   await refresh();
 });
 
 els.reset.addEventListener("click", async () => {
-  const data = await api("/api/reset", { method: "POST", body: "{}" });
+  const data = await api("/api/reset", { method: "POST", body: JSON.stringify({ source: "Browser UI" }) });
   if (data.prompt) {
     els.prompt.value = data.prompt;
   }
@@ -204,14 +210,14 @@ els.reset.addEventListener("click", async () => {
 });
 
 els.approve.addEventListener("click", async () => {
-  await api("/api/approve", { method: "POST", body: "{}" });
+  await api("/api/approve", { method: "POST", body: JSON.stringify({ source: "Browser UI" }) });
   await refresh();
 });
 
 els.refine.addEventListener("click", async () => {
   await api("/api/refine", {
     method: "POST",
-    body: JSON.stringify({ feedback: els.feedback.value }),
+    body: JSON.stringify({ feedback: els.feedback.value, source: "Browser UI" }),
   });
   els.feedback.value = "";
   await refresh();

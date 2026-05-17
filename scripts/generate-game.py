@@ -14,6 +14,7 @@ import urllib.request
 
 DEFAULT_URL = os.environ.get("APP_FACTORY_URL", "http://127.0.0.1:7866").rstrip("/")
 DEFAULT_MODEL = os.environ.get("APP_FACTORY_MODEL", "qwen3-coder:30b")
+DEFAULT_SOURCE = os.environ.get("APP_FACTORY_SOURCE", "OpenClaw")
 
 
 def request_json(base_url: str, path: str, payload: dict | None = None, timeout: int = 30) -> dict:
@@ -52,8 +53,13 @@ def main() -> int:
     parser.add_argument("prompt", nargs="*", help="Game or app prompt.")
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--source", default=DEFAULT_SOURCE, help="Control surface label shown in the UI.")
     parser.add_argument("--timeout", type=int, default=int(os.environ.get("APP_FACTORY_GENERATE_TIMEOUT", "900")))
-    parser.add_argument("--refine", help="Refine the existing run with this feedback instead of starting a new run.")
+    parser.add_argument(
+        "--refine",
+        nargs="*",
+        help="Refine the existing run with this feedback instead of starting a new run.",
+    )
     parser.add_argument("--approve", action="store_true", help="Mark the current run approved.")
     args = parser.parse_args()
 
@@ -66,15 +72,18 @@ def main() -> int:
             raise RuntimeError(f"health check failed: {health}")
 
         if args.approve:
-            request_json(base_url, "/api/approve", {}, timeout=10)
+            request_json(base_url, "/api/approve", {"source": args.source}, timeout=10)
             result = request_json(base_url, "/api/status", timeout=10)
-        elif args.refine:
-            request_json(base_url, "/api/refine", {"feedback": args.refine}, timeout=10)
+        elif args.refine is not None:
+            refinement = " ".join(args.refine).strip()
+            if not refinement:
+                parser.error("--refine requires feedback text")
+            request_json(base_url, "/api/refine", {"feedback": refinement, "source": args.source}, timeout=10)
             result = wait_for_result(base_url, args.timeout)
         else:
             if not prompt:
                 parser.error("prompt is required unless --refine or --approve is used")
-            request_json(base_url, "/api/start", {"prompt": prompt, "model": args.model}, timeout=10)
+            request_json(base_url, "/api/start", {"prompt": prompt, "model": args.model, "source": args.source}, timeout=10)
             result = wait_for_result(base_url, args.timeout)
     except urllib.error.HTTPError as exc:
         print(exc.read().decode("utf-8", errors="ignore"), file=sys.stderr)
@@ -97,6 +106,8 @@ def main() -> int:
         "summary": result.get("summary"),
         "result": generated,
         "reviewNotes": result.get("reviewNotes", []),
+        "controller": result.get("controller"),
+        "lastAction": result.get("lastAction"),
     }
     print(json.dumps(output, indent=2))
 
